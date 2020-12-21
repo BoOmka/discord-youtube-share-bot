@@ -1,0 +1,14 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+discord = "*"
+discord-py-slash-command = "*"
+pytube = {git = "https://github.com/nficano/pytube"}
+
+[dev-packages]
+
+[requires]
+python_version = "3.9"
