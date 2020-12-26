@@ -7,6 +7,7 @@ import pytube
 import pytube.exceptions
 from discord.ext import commands, tasks
 from discord_slash import SlashCommand, SlashContext
+from discord_slash.error import RequestFailure
 from pytube.extract import video_id
 
 intents = discord.Intents.all()
@@ -53,6 +54,18 @@ def _get_max_resolution(video: pytube.YouTube) -> typing.Optional[int]:
         return None
 
 
+async def suppress_expired_token_error(
+        f: typing.Callable[..., typing.Awaitable[typing.Any]],
+        *args,
+        **kwargs,
+) -> typing.Any:
+    try:
+        return await f(*args, **kwargs)
+    except RequestFailure as ex:
+        if ex.msg == '{"message": "Invalid Webhook Token", "code": 50027}':
+            return None
+
+
 async def _send_video(ctx: SlashContext, link: str) -> None:
     await ctx.channel.send(
         f"{ctx.author.mention}: {link}",
@@ -74,7 +87,8 @@ async def check_videos():
             is_ready = False
         else:
             if not vid.is_availability_reported:
-                await vid.ctx.send(
+                await suppress_expired_token_error(
+                    vid.ctx.send,
                     content=(
                         f"Ladies and gentlemen, we got it!\n"
                         f"Your video \"{video.title}\" finally became available @{max_resolution}p.\n"
@@ -88,7 +102,8 @@ async def check_videos():
                     vid.max_available_resolution is not None
                     and vid.max_available_resolution < max_resolution < vid.desired_resolution
             ):
-                await vid.ctx.send(
+                await suppress_expired_token_error(
+                    vid.ctx.send,
                     content=f"\"{video.title}\": {max_resolution}p is available",
                     complete_hidden=True
                 )
@@ -112,7 +127,11 @@ async def schedule_resolution(ctx: SlashContext, link: str, resolution: int = 10
     try:
         video = pytube.YouTube(link)
     except pytube.extract.RegexMatchError:
-        await ctx.send(content=f"This is not a valid YouTube video link!", complete_hidden=True)
+        await suppress_expired_token_error(
+            ctx.send,
+            content=f"This is not a valid YouTube video link!",
+            complete_hidden=True
+        )
         return
     except pytube.exceptions.VideoUnavailable:
         msg_content = (
@@ -132,7 +151,7 @@ async def schedule_resolution(ctx: SlashContext, link: str, resolution: int = 10
                 f'which is greater than or equal to requested {resolution}p.\n'
                 f'Posting immediately...'
             )
-            await ctx.send(content=msg_content, complete_hidden=True)
+            await suppress_expired_token_error(ctx.send, content=msg_content, complete_hidden=True)
             await _send_video(ctx, watch_url)
             return
         else:
@@ -148,7 +167,7 @@ async def schedule_resolution(ctx: SlashContext, link: str, resolution: int = 10
         is_availability_reported=is_availability_reported,
         max_available_resolution=max_res,
     ))
-    await ctx.send(content=msg_content, complete_hidden=True)
+    await suppress_expired_token_error(ctx.send, content=msg_content, complete_hidden=True)
 
 
 if __name__ == '__main__':
