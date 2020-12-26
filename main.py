@@ -45,9 +45,9 @@ async def on_ready():
 def _get_max_resolution(video: pytube.YouTube) -> typing.Optional[int]:
     try:
         return max(
-            parse_resolution(s.desired_resolution)
+            parse_resolution(s.resolution)
             for s in video.streams
-            if s.desired_resolution is not None
+            if s.resolution is not None
         )
     except ValueError:
         return None
