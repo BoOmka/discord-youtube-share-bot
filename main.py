@@ -75,15 +75,12 @@ async def schedule_resolution(ctx: SlashContext, link: str, resolution: int = 10
         return
     except pytube.exceptions.VideoUnavailable:
         msg_content = (
-            f"Came into problem trying to retrieve the video (might be too new). "
-            f"Anyways, will post it as soon as it will become available at {resolution}!"
+            f"Ran into problem trying to retrieve the video (might be too new). "
+            f"Anyways, will post it as soon as it will become available at {resolution}p!"
         )
         watch_url = link
     else:
-        msg_content = (
-            f"Came into problem trying to retrieve the video (might be too new). "
-            f"Anyways, will post it as soon as it will become available at {resolution}!"
-        )
+        msg_content = f'Alrighty. Will send "{video.title}" here as soon as its quality reaches {resolution}p!'
         watch_url = video.watch_url
 
     SCHEDULED_POOL.add(ScheduledByResolutionVideo(
