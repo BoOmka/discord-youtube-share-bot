@@ -56,15 +56,21 @@ async def check_videos():
             is_ready = False
         else:
             if not vid.is_availability_reported:
-                await vid.ctx.channel.send(
-                    f"Ladies and gentlemen, we got it! \"{video.title}\" finally became available @{max_resolution}p."
-                    f"Waiting 'till it reaches {vid.resolution}p...",
+                await vid.ctx.send(
+                    content=(
+                        f"Ladies and gentlemen, we got it! "
+                        f"\"{video.title}\" finally became available @{max_resolution}p. "
+                        f"Waiting 'till it reaches {vid.resolution}p..."
+                    ),
                     complete_hidden=True
                 )
                 vid.is_availability_reported = True
                 vid.max_available_resolution = max_resolution
             if vid.max_available_resolution is not None and max_resolution > vid.max_available_resolution:
-                await vid.ctx.channel.send(f"\"{video.title}\": {max_resolution}p is available", complete_hidden=True)
+                await vid.ctx.send(
+                    content=f"\"{video.title}\": {max_resolution}p is available",
+                    complete_hidden=True
+                )
                 vid.max_available_resolution = max_resolution
 
         if is_ready:
