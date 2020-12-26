@@ -53,6 +53,13 @@ def _get_max_resolution(video: pytube.YouTube) -> typing.Optional[int]:
         return None
 
 
+async def _send_video(ctx: SlashContext, link: str) -> None:
+    await ctx.channel.send(
+        f"{ctx.author.mention}: {link}",
+        allowed_mentions=discord.AllowedMentions(users=False)
+    )
+
+
 @tasks.loop(seconds=CHECK_VIDEO_LOOP_PERIOD_SECONDS)
 async def check_videos():
     global SCHEDULED_POOL
@@ -89,7 +96,7 @@ async def check_videos():
 
         if is_ready:
             sent_msgs.add(vid)
-            await vid.ctx.channel.send(f"{vid.ctx.author.mention}: {vid.link}")
+            await _send_video(vid.ctx, vid.link)
         else:
             vid.retry_count += 1
             if vid.retry_count > MAX_RETRIES:
@@ -116,6 +123,8 @@ async def schedule_resolution(ctx: SlashContext, link: str, resolution: int = 10
         is_availability_reported = False
         max_res = None
     else:
+        watch_url = video.watch_url
+        is_availability_reported = True
         max_res = _get_max_resolution(video)
         if max_res >= resolution:
             msg_content = (
@@ -123,13 +132,14 @@ async def schedule_resolution(ctx: SlashContext, link: str, resolution: int = 10
                 f'which is greater than or equal to requested {resolution}p.\n'
                 f'Posting immediately...'
             )
+            await ctx.send(content=msg_content, complete_hidden=True)
+            await _send_video(ctx, watch_url)
+            return
         else:
             msg_content = (
                 f'Alrighty. Will send "{video.title}" here as soon as its quality reaches {resolution}p! '
                 f'(Now max {max_res}p is available)'
             )
-        watch_url = video.watch_url
-        is_availability_reported = True
 
     SCHEDULED_POOL.add(ScheduledByResolutionVideo(
         ctx=ctx,
