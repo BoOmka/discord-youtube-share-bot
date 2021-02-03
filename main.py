@@ -145,9 +145,7 @@ async def schedule_resolution(ctx: SlashContext, link: str, resolution: int = 10
         is_availability_reported = False
         max_res = None
     except Exception:
-        msg_content = "Unexpected problem occured."
-        if DEVELOPER_ID:
-            msg_content += f" <@{DEVELOPER_ID}> fix this shit!!!"
+        msg_content = f"Unexpected problem occured. <@{DEVELOPER_ID}> fix this shit!!!"
         await suppress_expired_token_error(ctx.send, content=msg_content, complete_hidden=False)
         return
     else:
