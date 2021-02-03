@@ -141,6 +141,10 @@ async def schedule_resolution(ctx: SlashContext, link: str, resolution: int = 10
         watch_url = link
         is_availability_reported = False
         max_res = None
+    except Exception:
+        msg_content = "Unexpected problem occured. @Boomka#5933 fix this shit!!!"
+        await suppress_expired_token_error(ctx.send, content=msg_content, complete_hidden=False)
+        return
     else:
         watch_url = video.watch_url
         is_availability_reported = True
@@ -167,6 +171,7 @@ async def schedule_resolution(ctx: SlashContext, link: str, resolution: int = 10
         is_availability_reported=is_availability_reported,
         max_available_resolution=max_res,
     ))
+
     await suppress_expired_token_error(ctx.send, content=msg_content, complete_hidden=True)
 
 
