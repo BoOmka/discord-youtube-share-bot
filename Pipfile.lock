@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "590ba055bcfe40c09c166476fbfa2242f9c7327cc9f0bd9985ed0503469fbb7d"
+            "sha256": "9841b91c2462f9c26140e541423a0fc50de28687b7c1ad2eb9601373bb533a03"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -156,6 +156,10 @@
             ],
             "markers": "python_version >= '3.6'",
             "version": "==5.1.0"
+        },
+        "pytube": {
+            "git": "https://github.com/nficano/pytube",
+            "ref": "92856dbf751f09cb46c6282fa9fb2af080dd2418"
         },
         "typing-extensions": {
             "hashes": [
