@@ -8,8 +8,15 @@ import pytube.exceptions
 import pytube.extract
 from discord.ext import commands, tasks
 
-from config import YT_API_KEY, CHECK_VIDEO_LOOP_PERIOD_SECONDS, MAX_GETVIDEO_RETRIES, DISCORD_BOT_TOKEN, LOG_LEVEL
-from helpers import suppress_expired_token_error, _send_video
+from config import (
+    CHECK_VIDEO_LOOP_PERIOD_SECONDS,
+    DEVELOPER_ID,
+    DISCORD_BOT_TOKEN,
+    LOG_LEVEL,
+    MAX_GETVIDEO_RETRIES,
+    YT_API_KEY,
+)
+from helpers import _send_video, suppress_expired_token_error
 from models import ScheduledVideo, Video
 from repositories import YoutubeVideoRepository
 
@@ -103,7 +110,7 @@ async def schedule_hd(ctx: discord_slash.SlashContext, link: str):
         is_availability_reported = False
     except Exception as ex:
         _LOGGER.exception(ex)
-        msg_content = f"Unexpected problem occured. <@224247522351251456> fix this shit!!!"
+        msg_content = f"Unexpected problem occured. <@{DEVELOPER_ID}> fix this shit!!!"
         await suppress_expired_token_error(ctx.send, content=msg_content, complete_hidden=False)
         return
     else:
