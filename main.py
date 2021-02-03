@@ -10,6 +10,9 @@ from discord_slash import SlashCommand, SlashContext
 from discord_slash.error import RequestFailure
 from pytube.extract import video_id
 
+DEVELOPER_ID = os.environ.get("DISCORD_BOT_DEVELOPER_ID", None)
+
+
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
 slash = SlashCommand(bot)
@@ -142,7 +145,9 @@ async def schedule_resolution(ctx: SlashContext, link: str, resolution: int = 10
         is_availability_reported = False
         max_res = None
     except Exception:
-        msg_content = "Unexpected problem occured. @Boomka#5933 fix this shit!!!"
+        msg_content = "Unexpected problem occured."
+        if DEVELOPER_ID:
+            msg_content += f" <@{DEVELOPER_ID}> fix this shit!!!"
         await suppress_expired_token_error(ctx.send, content=msg_content, complete_hidden=False)
         return
     else:
