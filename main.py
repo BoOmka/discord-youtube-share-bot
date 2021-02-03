@@ -1,3 +1,4 @@
+import logging
 import typing as t
 
 import discord
@@ -18,6 +19,7 @@ slash = discord_slash.SlashCommand(bot, auto_register=True)
 yt_repo = YoutubeVideoRepository(YT_API_KEY)
 
 SCHEDULED_POOL: t.Set['ScheduledVideo'] = set()
+_LOGGER = logging.getLogger(__name__)
 
 schedule_hd_options = [
     {
@@ -80,6 +82,7 @@ async def check_videos():
     options=schedule_hd_options,
 )
 async def schedule_hd(ctx: discord_slash.SlashContext, link: str):
+    _LOGGER.info(link)
     global SCHEDULED_POOL
     video_id = pytube.extract.video_id(link)
     if not video_id:
@@ -97,8 +100,9 @@ async def schedule_hd(ctx: discord_slash.SlashContext, link: str):
             f"Anyways, will post it as soon as it will become available at HD!"
         )
         is_availability_reported = False
-    except Exception:
-        msg_content = f"Unexpected problem occured. <@{DEVELOPER_ID}> fix this shit!!!"
+    except Exception as ex:
+        _LOGGER.error(ex)
+        msg_content = f"Unexpected problem occured. <@224247522351251456> fix this shit!!!"
         await suppress_expired_token_error(ctx.send, content=msg_content, complete_hidden=False)
         return
     else:
