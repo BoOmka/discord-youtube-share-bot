@@ -17,7 +17,7 @@ class YoutubeVideoRepository:
             videos.append(Video(
                 id=item["id"],
                 title=item["snippet"]["title"],
-                is_hd=item["contentDetails"]["definition"] == "hd",
+                is_hd="maxres" in item["snippet"]["thumbnails"],
             ))
         return videos
 
