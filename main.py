@@ -93,7 +93,10 @@ async def schedule_hd(ctx: discord_slash.SlashContext, link: str):
     _LOGGER.info(link)
     global SCHEDULED_POOL
     await ctx.defer(hidden=True)
-    video_id = pytube.extract.video_id(link)
+    try:
+        video_id = pytube.extract.video_id(link)
+    except pytube.exceptions.RegexMatchError:
+        video_id = None
     if not video_id:
         await suppress_expired_token_error(
             ctx.send,
