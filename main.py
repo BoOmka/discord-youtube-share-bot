@@ -22,7 +22,7 @@ from repositories import YoutubeVideoRepository
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="/", intents=discord.Intents.all())
-slash = discord_slash.SlashCommand(bot, auto_register=True)
+slash = discord_slash.SlashCommand(bot, sync_commands=True)
 yt_repo = YoutubeVideoRepository(YT_API_KEY)
 
 SCHEDULED_POOL: t.Set['ScheduledVideo'] = set()
@@ -111,13 +111,13 @@ async def schedule_hd(ctx: discord_slash.SlashContext, link: str):
     except Exception as ex:
         _LOGGER.exception(ex)
         msg_content = f"Unexpected problem occured. <@{DEVELOPER_ID}> fix this shit!!!"
-        await suppress_expired_token_error(ctx.send, content=msg_content, complete_hidden=False)
+        await suppress_expired_token_error(ctx.send, content=msg_content,  hidden=True)
         return
     else:
         is_availability_reported = True
         if video.is_hd:
             msg_content = f'This video is already HD\nPosting immediately...'
-            await suppress_expired_token_error(ctx.send, content=msg_content, complete_hidden=True)
+            await suppress_expired_token_error(ctx.send, content=msg_content, hidden=True)
             await _send_video(ctx, video.url)
             return
         else:
@@ -129,7 +129,7 @@ async def schedule_hd(ctx: discord_slash.SlashContext, link: str):
         is_availability_reported=is_availability_reported,
     ))
 
-    await suppress_expired_token_error(ctx.send, content=msg_content, complete_hidden=True)
+    await suppress_expired_token_error(ctx.send, content=msg_content, hidden=True)
 
 
 if __name__ == '__main__':

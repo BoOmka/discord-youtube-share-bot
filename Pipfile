@@ -6,7 +6,7 @@ name = "pypi"
 [packages]
 aiohttp = "*"
 discord = "*"
-discord-py-slash-command = "*"
+discord-py-slash-command = "==1.0.9.5"
 pytube = {git = "https://github.com/nficano/pytube"}
 yarl = "*"
 
