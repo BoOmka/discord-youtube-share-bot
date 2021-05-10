@@ -66,7 +66,7 @@ async def check_videos():
                         f"Your video \"{yt_video.title}\" finally became available.\n"
                         f"Waiting 'till it reaches becomes HD..."
                     ),
-                    complete_hidden=True
+                    hidden=True
                 )
                 scheduled_video.is_availability_reported = True
 
@@ -92,12 +92,13 @@ async def check_videos():
 async def schedule_hd(ctx: discord_slash.SlashContext, link: str):
     _LOGGER.info(link)
     global SCHEDULED_POOL
+    await ctx.defer(hidden=True)
     video_id = pytube.extract.video_id(link)
     if not video_id:
         await suppress_expired_token_error(
             ctx.send,
             content=f"This is not a valid YouTube video link!",
-            complete_hidden=True
+            hidden=True
         )
         return
     try:
