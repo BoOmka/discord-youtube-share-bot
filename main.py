@@ -103,6 +103,13 @@ async def check_videos():
             if scheduled_video.retry_count > MAX_GETVIDEO_RETRIES:
                 log_attempt(scheduled_video, f"Max attempts ({MAX_GETVIDEO_RETRIES}) exceeded. Removing from pool")
                 discarded_msgs.add(scheduled_video)
+                msg_content = (
+                    f"{scheduled_video.ctx.author.mention} want to send HD version of {scheduled_video.url}, "
+                    f"but it never became HD."
+                )
+                embed = discord.Embed()
+                embed.set_image(url="https://www.meme-arsenal.com/memes/8eaca408c8d818bb26575e2993c7b5ee.jpg")
+                await suppress_expired_token_error(scheduled_video.ctx.channel.send, content=msg_content, embed=embed)
 
     SCHEDULED_POOL -= sent_msgs
     SCHEDULED_POOL -= discarded_msgs
