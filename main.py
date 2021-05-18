@@ -41,8 +41,9 @@ schedule_hd_options = [
 
 @bot.event
 async def on_ready():
+    _LOGGER.info(f'Logged in as {bot.user}')
     check_videos.start()
-    print('We have logged in as {0.user}'.format(bot))
+    _LOGGER.info(f'Started `check_videos` task')
 
 
 @tasks.loop(seconds=CHECK_VIDEO_LOOP_PERIOD_SECONDS)
@@ -53,10 +54,17 @@ async def check_videos():
     video_ids = [vid.video_id for vid in SCHEDULED_POOL]
     yt_videos: t.Dict[str, Video] = {vid.id: vid for vid in await yt_repo.get_many(video_ids)}
     for scheduled_video in SCHEDULED_POOL:
+        def log_attempt(sched_video: ScheduledVideo, postfix: str = "...") -> None:
+            attempt = sched_video.retry_count + 1
+            _LOGGER.info(f"Checking video (attempt #{attempt}): {sched_video.url} {postfix}")
+
+        log_attempt(scheduled_video)
         yt_video = yt_videos.get(scheduled_video.video_id)
         if not yt_video:
+            log_attempt(scheduled_video, "— Not HD")
             is_ready = False
         else:
+            log_attempt(scheduled_video, "— HD!")
             is_ready = yt_video.is_hd
             if not scheduled_video.is_availability_reported:
                 await suppress_expired_token_error(
@@ -77,6 +85,7 @@ async def check_videos():
             scheduled_video.retry_count += 1
             if scheduled_video.retry_count > MAX_GETVIDEO_RETRIES:
                 discarded_msgs.add(scheduled_video)
+            log_attempt(scheduled_video, f"Max attempts ({MAX_GETVIDEO_RETRIES}) exceeded. Removing from pool")
 
     SCHEDULED_POOL -= sent_msgs
     SCHEDULED_POOL -= discarded_msgs
@@ -90,7 +99,7 @@ async def check_videos():
     options=schedule_hd_options,
 )
 async def schedule_hd(ctx: discord_slash.SlashContext, link: str):
-    _LOGGER.info(link)
+    _LOGGER.info(f"New `schedule_hd` request: {link}")
     global SCHEDULED_POOL
     await ctx.defer(hidden=True)
     try:
@@ -103,6 +112,7 @@ async def schedule_hd(ctx: discord_slash.SlashContext, link: str):
             content=f"This is not a valid YouTube video link!",
             hidden=True
         )
+        _LOGGER.info(f"Rejected invalid link: {link}")
         return
     try:
         video = await yt_repo.get(video_id)
@@ -123,9 +133,11 @@ async def schedule_hd(ctx: discord_slash.SlashContext, link: str):
             msg_content = f'This video is already HD\nPosting immediately...'
             await suppress_expired_token_error(ctx.send, content=msg_content, hidden=True)
             await _send_video(ctx, video.url)
+            _LOGGER.info(f"Posted link right-away: {link}")
             return
         else:
             msg_content = f'Alrighty. Will send "{video.title}" here as soon as it becomes HD!'
+            _LOGGER.info(f"Added link to pool: {link}")
 
     SCHEDULED_POOL.add(ScheduledVideo(
         ctx=ctx,

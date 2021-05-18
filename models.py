@@ -13,6 +13,10 @@ class ScheduledVideo:
     def __hash__(self):
         return hash((self.ctx.channel, self.ctx.author, self.video_id))
 
+    @property
+    def url(self) -> str:
+        return f"https://youtu.be/{self.video_id}"
+
 
 @dataclasses.dataclass
 class Video:
