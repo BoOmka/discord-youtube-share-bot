@@ -1,79 +1,49 @@
-import dataclasses
-import os
-import typing
+import logging
+import typing as t
 
 import discord
+import discord_slash.error
 import pytube
 import pytube.exceptions
+import pytube.extract
 from discord.ext import commands, tasks
-from discord_slash import SlashCommand, SlashContext
-from discord_slash.error import RequestFailure
-from pytube.extract import video_id
 
-DEVELOPER_ID = os.environ.get("DISCORD_BOT_DEVELOPER_ID", None)
-
+from config import (
+    CHECK_VIDEO_LOOP_PERIOD_SECONDS,
+    DEVELOPER_ID,
+    DISCORD_BOT_TOKEN,
+    LOG_LEVEL,
+    MAX_GETVIDEO_RETRIES,
+    YT_API_KEY,
+)
+from helpers import _send_video, suppress_expired_token_error
+from models import ScheduledVideo, Video
+from repositories import YoutubeVideoRepository
 
 intents = discord.Intents.all()
-bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
-slash = SlashCommand(bot)
+bot = commands.Bot(command_prefix="/", intents=discord.Intents.all())
+slash = discord_slash.SlashCommand(bot, sync_commands=True)
+yt_repo = YoutubeVideoRepository(YT_API_KEY)
 
-SCHEDULED_POOL: typing.Set['ScheduledByResolutionVideo'] = set()
-CHECK_VIDEO_LOOP_PERIOD_SECONDS = 10
-MAX_RETRIES = 1440  # max 14400 seconds / 4 hours
+SCHEDULED_POOL: t.Set['ScheduledVideo'] = set()
+_LOGGER = logging.getLogger(__name__)
+_LOGGER.setLevel(LOG_LEVEL)
 
-
-@dataclasses.dataclass
-class ScheduledByResolutionVideo:
-    ctx: SlashContext
-    link: str
-    desired_resolution: int
-    retry_count: int = 0
-    is_availability_reported: bool = False
-    max_available_resolution: typing.Optional[int] = None
-
-    def __hash__(self):
-        return hash((self.ctx.channel, self.ctx.author, self.link, self.desired_resolution))
-
-
-def parse_resolution(resolution_str: str) -> int:
-    """Parse youtube video resolution string (e.g. `1080p`) to corresponding int"""
-    return int(resolution_str.rstrip('p'))
+schedule_hd_options = [
+    {
+        'type': discord_slash.SlashCommandOptionType.STRING,
+        'name': 'link',
+        'description': 'Youtube video link',
+        'required': True,
+    }
+]
 
 
 @bot.event
 async def on_ready():
+    _LOGGER.info(f'Logged in as {bot.user}')
     check_videos.start()
-    print('We have logged in as {0.user}'.format(bot))
-
-
-def _get_max_resolution(video: pytube.YouTube) -> typing.Optional[int]:
-    try:
-        return max(
-            parse_resolution(s.resolution)
-            for s in video.streams
-            if s.resolution is not None
-        )
-    except ValueError:
-        return None
-
-
-async def suppress_expired_token_error(
-        f: typing.Callable[..., typing.Awaitable[typing.Any]],
-        *args,
-        **kwargs,
-) -> typing.Any:
-    try:
-        return await f(*args, **kwargs)
-    except RequestFailure as ex:
-        if ex.msg == '{"message": "Invalid Webhook Token", "code": 50027}':
-            return None
-
-
-async def _send_video(ctx: SlashContext, link: str) -> None:
-    await ctx.channel.send(
-        f"{ctx.author.mention}: {link}",
-        allowed_mentions=discord.AllowedMentions(users=False)
-    )
+    _LOGGER.info(f'Started `check_videos` task')
 
 
 @tasks.loop(seconds=CHECK_VIDEO_LOOP_PERIOD_SECONDS)
@@ -81,102 +51,102 @@ async def check_videos():
     global SCHEDULED_POOL
     sent_msgs = set()
     discarded_msgs = set()
-    for vid in SCHEDULED_POOL:
-        try:
-            video = pytube.YouTube(vid.link)
-            max_resolution = _get_max_resolution(video)
-            is_ready = max_resolution >= vid.desired_resolution
-        except pytube.exceptions.VideoUnavailable:
+    video_ids = [vid.video_id for vid in SCHEDULED_POOL]
+    yt_videos: t.Dict[str, Video] = {vid.id: vid for vid in await yt_repo.get_many(video_ids)}
+    for scheduled_video in SCHEDULED_POOL:
+        def log_attempt(sched_video: ScheduledVideo, postfix: str = "...") -> None:
+            attempt = sched_video.retry_count + 1
+            _LOGGER.info(f"Checking video (attempt #{attempt}): {sched_video.url} {postfix}")
+
+        log_attempt(scheduled_video)
+        yt_video = yt_videos.get(scheduled_video.video_id)
+        if not yt_video:
+            log_attempt(scheduled_video, "— Not HD")
             is_ready = False
         else:
-            if not vid.is_availability_reported:
+            log_attempt(scheduled_video, "— HD!")
+            is_ready = yt_video.is_hd
+            if not scheduled_video.is_availability_reported:
                 await suppress_expired_token_error(
-                    vid.ctx.send,
+                    scheduled_video.ctx.send,
                     content=(
                         f"Ladies and gentlemen, we got it!\n"
-                        f"Your video \"{video.title}\" finally became available @{max_resolution}p.\n"
-                        f"Waiting 'till it reaches {vid.desired_resolution}p..."
+                        f"Your video \"{yt_video.title}\" finally became available.\n"
+                        f"Waiting 'till it reaches becomes HD..."
                     ),
-                    complete_hidden=True
+                    hidden=True
                 )
-                vid.is_availability_reported = True
-                vid.max_available_resolution = max_resolution
-            if (
-                    vid.max_available_resolution is not None
-                    and vid.max_available_resolution < max_resolution < vid.desired_resolution
-            ):
-                await suppress_expired_token_error(
-                    vid.ctx.send,
-                    content=f"\"{video.title}\": {max_resolution}p is available",
-                    complete_hidden=True
-                )
-                vid.max_available_resolution = max_resolution
+                scheduled_video.is_availability_reported = True
 
         if is_ready:
-            sent_msgs.add(vid)
-            await _send_video(vid.ctx, vid.link)
+            sent_msgs.add(scheduled_video)
+            await _send_video(scheduled_video.ctx, yt_video.url)
         else:
-            vid.retry_count += 1
-            if vid.retry_count > MAX_RETRIES:
-                discarded_msgs.add(vid)
+            scheduled_video.retry_count += 1
+            if scheduled_video.retry_count > MAX_GETVIDEO_RETRIES:
+                discarded_msgs.add(scheduled_video)
+            log_attempt(scheduled_video, f"Max attempts ({MAX_GETVIDEO_RETRIES}) exceeded. Removing from pool")
 
     SCHEDULED_POOL -= sent_msgs
     SCHEDULED_POOL -= discarded_msgs
 
 
-@slash.subcommand(base="youtube", subcommand_group="schedule", name="resolution")
-async def schedule_resolution(ctx: SlashContext, link: str, resolution: int = 1080):
+@slash.subcommand(
+    base="youtube",
+    subcommand_group="schedule",
+    name="hd",
+    description='Post a video link as soon as it reaches its source resolution',
+    options=schedule_hd_options,
+)
+async def schedule_hd(ctx: discord_slash.SlashContext, link: str):
+    _LOGGER.info(f"New `schedule_hd` request: {link}")
     global SCHEDULED_POOL
+    await ctx.defer(hidden=True)
     try:
-        video = pytube.YouTube(link)
-    except pytube.extract.RegexMatchError:
+        video_id = pytube.extract.video_id(link)
+    except pytube.exceptions.RegexMatchError:
+        video_id = None
+    if not video_id:
         await suppress_expired_token_error(
             ctx.send,
             content=f"This is not a valid YouTube video link!",
-            complete_hidden=True
+            hidden=True
         )
+        _LOGGER.info(f"Rejected invalid link: {link}")
         return
-    except pytube.exceptions.VideoUnavailable:
+    try:
+        video = await yt_repo.get(video_id)
+    except ValueError:
         msg_content = (
             f"Ran into problem trying to retrieve the video (might be too new). "
-            f"Anyways, will post it as soon as it will become available at {resolution}p!"
+            f"Anyways, will post it as soon as it will become available at HD!"
         )
-        watch_url = link
         is_availability_reported = False
-        max_res = None
-    except Exception:
+    except Exception as ex:
+        _LOGGER.exception(ex)
         msg_content = f"Unexpected problem occured. <@{DEVELOPER_ID}> fix this shit!!!"
-        await suppress_expired_token_error(ctx.send, content=msg_content, complete_hidden=False)
+        await suppress_expired_token_error(ctx.send, content=msg_content,  hidden=True)
         return
     else:
-        watch_url = video.watch_url
         is_availability_reported = True
-        max_res = _get_max_resolution(video)
-        if max_res >= resolution:
-            msg_content = (
-                f'This video has already reached resolution {max_res}p, '
-                f'which is greater than or equal to requested {resolution}p.\n'
-                f'Posting immediately...'
-            )
-            await suppress_expired_token_error(ctx.send, content=msg_content, complete_hidden=True)
-            await _send_video(ctx, watch_url)
+        if video.is_hd:
+            msg_content = f'This video is already HD\nPosting immediately...'
+            await suppress_expired_token_error(ctx.send, content=msg_content, hidden=True)
+            await _send_video(ctx, video.url)
+            _LOGGER.info(f"Posted link right-away: {link}")
             return
         else:
-            msg_content = (
-                f'Alrighty. Will send "{video.title}" here as soon as its quality reaches {resolution}p! '
-                f'(Now max {max_res}p is available)'
-            )
+            msg_content = f'Alrighty. Will send "{video.title}" here as soon as it becomes HD!'
+            _LOGGER.info(f"Added link to pool: {link}")
 
-    SCHEDULED_POOL.add(ScheduledByResolutionVideo(
+    SCHEDULED_POOL.add(ScheduledVideo(
         ctx=ctx,
-        link=watch_url,
-        desired_resolution=resolution,
+        video_id=video_id,
         is_availability_reported=is_availability_reported,
-        max_available_resolution=max_res,
     ))
 
-    await suppress_expired_token_error(ctx.send, content=msg_content, complete_hidden=True)
+    await suppress_expired_token_error(ctx.send, content=msg_content, hidden=True)
 
 
 if __name__ == '__main__':
-    bot.run(os.environ.get('DISCORD_TOKEN'))
+    bot.run(DISCORD_BOT_TOKEN)

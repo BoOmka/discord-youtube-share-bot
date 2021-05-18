@@ -1,0 +1,8 @@
+import os
+
+DISCORD_BOT_TOKEN = os.environ.get('DISCORD_TOKEN')
+YT_API_KEY = os.environ.get("YOUTUBE_API_KEY")
+DEVELOPER_ID = os.environ.get("DISCORD_BOT_DEVELOPER_ID", None)
+CHECK_VIDEO_LOOP_PERIOD_SECONDS = 20
+MAX_GETVIDEO_RETRIES = 1440  # max 14400 seconds / 4 hours
+LOG_LEVEL = "DEBUG"

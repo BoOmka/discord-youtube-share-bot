@@ -6,5 +6,7 @@ services:
     build: .
     environment:
       DISCORD_TOKEN: ${DISCORD_TOKEN}
+      DISCORD_BOT_DEVELOPER_ID: ${DISCORD_BOT_DEVELOPER_ID}
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY}
     working_dir: "/app"
     command: python -O main.py
