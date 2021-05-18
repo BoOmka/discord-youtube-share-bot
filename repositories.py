@@ -1,6 +1,8 @@
 import typing as t
+from datetime import datetime
 
 from clients import YoutubeDataAPIv3AsyncClient
+from enums import Definition
 from models import Video
 
 
@@ -17,7 +19,9 @@ class YoutubeVideoRepository:
             videos.append(Video(
                 id=item["id"],
                 title=item["snippet"]["title"],
-                is_hd="maxres" in item["snippet"]["thumbnails"],
+                published_at=datetime.strptime(item["snippet"]["publishedAt"], '%Y-%m-%dT%H:%M:%SZ'),
+                definition=Definition[item["contentDetails"]["definition"]],
+                has_maxresdefault="maxres" in item["snippet"]["thumbnails"],
             ))
         return videos
 
