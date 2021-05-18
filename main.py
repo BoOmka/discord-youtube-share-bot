@@ -104,7 +104,7 @@ async def check_videos():
                 log_attempt(scheduled_video, f"Max attempts ({MAX_GETVIDEO_RETRIES}) exceeded. Removing from pool")
                 discarded_msgs.add(scheduled_video)
                 msg_content = (
-                    f"{scheduled_video.ctx.author.mention} want to send HD version of {scheduled_video.url}, "
+                    f"{scheduled_video.ctx.author.mention} wanted to send HD version of {scheduled_video.url}, "
                     f"but it never became HD."
                 )
                 embed = discord.Embed()
